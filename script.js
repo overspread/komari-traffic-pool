@@ -1,4 +1,4 @@
-// kkr-traffic-pool —— 共享流量池 Komari 插件
+// komari-traffic-pool —— 共享流量池 Komari 插件
 // 按组聚合节点计费口径流量，对比预置额度，阶梯告警（如 Oracle 多机共享 10TB/月）。
 // 数据源: public:queryMetrics (net.total.up / net.total.down 单调累计计数器) 增量法累计。
 // 引擎: moejs alpha —— 只用基础语法；范式对齐官方 load-notification 插件。
@@ -12,7 +12,7 @@ const server = require("server");
 const fs = require("fs");
 const path = require("path");
 
-const SHORT = "kkr-traffic-pool";
+const SHORT = "komari-traffic-pool";
 const STATE_FILE = path.join(__storageDir__, "state.json");
 const LOG_TAG = `[${SHORT}]`;
 const GB = 1024 * 1024 * 1024;

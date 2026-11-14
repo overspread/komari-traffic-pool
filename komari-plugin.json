@@ -3,7 +3,7 @@
     "zh-CN": "共享流量池",
     "en": "Shared Traffic Pool"
   },
-  "short": "kkr-traffic-pool",
+  "short": "komari-traffic-pool",
   "author": "overspread",
   "description": {
     "zh-CN": "按组聚合节点出站/入站流量，对比预置额度，阶梯告警（如 Oracle 多机共享 10TB 月额度）",
