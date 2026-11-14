@@ -1,0 +1,68 @@
+{
+  "name": {
+    "zh-CN": "共享流量池",
+    "en": "Shared Traffic Pool"
+  },
+  "short": "kkr-traffic-pool",
+  "author": "overspread",
+  "description": {
+    "zh-CN": "按组聚合节点出站/入站流量，对比预置额度，阶梯告警（如 Oracle 多机共享 10TB 月额度）",
+    "en": "Aggregate node traffic per group against a preset quota with stepped alerts (e.g. Oracle shared 10TB/mo)"
+  },
+  "version": "1.0.0",
+  "komari": ">=1.6.0",
+  "entry": "script.js",
+  "permissions": {
+    "node": true,
+    "allowSystemRPC": true
+  },
+  "configuration": {
+    "type": "managed",
+    "data": [
+      {
+        "type": "title",
+        "key": "runtime",
+        "name": { "zh-CN": "运行策略", "en": "Runtime" }
+      },
+      {
+        "key": "enabled",
+        "name": { "zh-CN": "启用后台统计与告警", "en": "Enable scheduler & alerts" },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "关闭后保留分组配置与累计数据，但暂停查询和告警。",
+          "en": "Keeps groups and counters, pauses queries and alerts."
+        }
+      },
+      {
+        "key": "default_interval_minutes",
+        "name": { "zh-CN": "默认刷新间隔（分钟）", "en": "Default refresh interval (min)" },
+        "type": "number",
+        "default": 10,
+        "help": {
+          "zh-CN": "仅用于新建分组；每个分组可单独覆盖。",
+          "en": "Used for new groups; each group can override."
+        }
+      },
+      {
+        "key": "notify_enabled",
+        "name": { "zh-CN": "发送 Telegram 告警", "en": "Send Telegram alerts" },
+        "type": "switch",
+        "default": true,
+        "help": {
+          "zh-CN": "经 Komari 通知通道（admin:sendNotification）发送；每个分组还有独立开关。",
+          "en": "Via admin:sendNotification; each group has its own switch too."
+        }
+      }
+    ]
+  },
+  "pages": [
+    {
+      "file": "admin.html",
+      "title": { "zh-CN": "共享流量池", "en": "Shared Traffic Pool" },
+      "icon": "",
+      "type": "iframe",
+      "visibility": "admin"
+    }
+  ]
+}

@@ -1,0 +1,1042 @@
+<!doctype html>
+<html lang="zh-CN" class="radix-themes" data-accent-color="blue" data-scaling="100%" data-radius="medium">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>共享流量池</title>
+  <link rel="stylesheet" href="assets/radix-theme.css?v=0.2.0-radix-4">
+  <script defer src="assets/radix-theme.js?v=0.2.0-radix-4"></script>
+  <style>
+    /* ---------- 颜色/间距令牌 ---------- */
+    :root {
+      --kp-gap: var(--space-5);
+    }
+    
+    :root {
+      --kp-line: var(--gray-a6);
+      --kp-line-strong: var(--gray-a8);
+      --kp-ink: var(--gray-12);
+      --kp-ink-soft: var(--gray-11);
+      --kp-fill: var(--gray-a3);
+      --kp-track: var(--gray-a4);
+      --kp-radius: var(--radius-4);
+      --kp-gap: var(--space-5);
+    }
+
+    .app-shell { display: block; }
+    .topbar { margin-bottom: var(--space-7); }
+
+    .section-head {
+      align-items: flex-end;
+      gap: var(--space-4);
+      margin-bottom: var(--space-4);
+      padding-bottom: var(--space-4);
+      border-bottom: 1px solid var(--kp-line);
+    }
+    .section-head h2 { font-size: var(--font-size-5); font-weight: 800; letter-spacing: -0.01em; }
+    .section-head p { margin-top: var(--space-2); max-width: 640px; line-height: 1.55; }
+    .section-head .foot-actions { flex: 0 0 auto; }
+
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-4); margin-bottom: var(--space-7); }
+    .stat {
+      padding: var(--space-4) var(--space-5);
+      border: 1px solid var(--kp-line);
+      border-radius: var(--kp-radius);
+    }
+    .stat-label { color: var(--kp-ink-soft); font-size: var(--font-size-1); font-weight: 700; letter-spacing: .02em; }
+    .stat-value { margin-top: var(--space-2); color: var(--kp-ink); font-size: 26px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .stat-note { margin-top: var(--space-1); color: var(--kp-ink-soft); font-size: var(--font-size-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .pool-list { display: grid; gap: var(--space-4); }
+    .pool-card {
+      padding: var(--space-5);
+      border: 1px solid var(--kp-line);
+      border-radius: var(--kp-radius);
+      background: var(--gray-1);
+      transition: border-color .16s ease, box-shadow .16s ease;
+    }
+    .pool-card:hover { border-color: var(--kp-line-strong); box-shadow: var(--shadow); }
+    .pool-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
+    .pool-card h3 { margin: 0; color: var(--kp-ink); font-size: var(--font-size-4); font-weight: 800; line-height: 1.3; }
+    .pool-actions { display: flex; align-items: center; gap: var(--space-2); flex: 0 0 auto; }
+
+    .toolbar-row { gap: var(--space-2); margin-top: var(--space-3); }
+    .pill { padding: 3px 10px; border-radius: 999px; font-size: var(--font-size-1); font-weight: 700; line-height: 1.6; letter-spacing: .01em; }
+    .pill.ok   { background: var(--green-3); color: var(--green-11); }
+    .pill.warn { background: var(--amber-3); color: var(--amber-11); }
+    .pill.bad  { background: var(--red-3);   color: var(--red-11); }
+    .pill.off  { background: var(--gray-3);  color: var(--gray-11); }
+    .pill.mono { background: var(--accent-3); color: var(--accent-11); }
+
+    .bar { margin-top: var(--space-5); }
+    .bar-label { display: flex; align-items: baseline; justify-content: space-between; gap: var(--space-4); }
+    .bar-num { color: var(--kp-ink); font-size: var(--font-size-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+    .bar-pct { font-size: 28px; font-weight: 800; line-height: 1; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .bar-pct.ok   { color: var(--green-11); }
+    .bar-pct.warn { color: var(--amber-11); }
+    .bar-pct.bad  { color: var(--red-11); }
+    .bar-track {
+      position: relative;
+      height: 8px;
+      margin-top: var(--space-3);
+      border-radius: 999px;
+      background: var(--kp-track);
+      overflow: hidden;
+    }
+    .bar-fill { height: 100%; border-radius: 999px; background: var(--green-9); transition: width .4s cubic-bezier(.2,0,.2,1); }
+    .bar-fill.warn { background: var(--amber-9); }
+    .bar-fill.bad  { background: var(--red-9); }
+    .bar-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--gray-a8); }
+
+    .pool-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2) var(--space-5);
+      margin-top: var(--space-4);
+      color: var(--kp-ink-soft);
+      font-size: var(--font-size-1);
+      font-variant-numeric: tabular-nums;
+    }
+    .pool-meta strong { color: var(--kp-ink); font-weight: 700; }
+    .pool-meta strong.stale { color: var(--amber-11); }
+    .backfill-note { margin-top: var(--space-3); color: var(--kp-ink-soft); font-size: var(--font-size-1); }
+    .backfill-note strong { color: var(--kp-ink); }
+    .pool-error {
+      display: flex;
+      gap: var(--space-2);
+      margin-top: var(--space-4);
+      padding-top: var(--space-3);
+      border-top: 1px solid var(--kp-line);
+      color: var(--red-11);
+      font-size: var(--font-size-1);
+    }
+
+    details.contrib-toggle { margin-top: var(--space-4); border-top: 1px solid var(--kp-line); padding-top: var(--space-3); }
+    details.contrib-toggle > summary {
+      cursor: pointer;
+      color: var(--kp-ink-soft);
+      font-size: var(--font-size-1);
+      font-weight: 700;
+      user-select: none;
+      list-style: none;
+    }
+    details.contrib-toggle > summary::-webkit-details-marker { display: none; }
+    details.contrib-toggle > summary::before { content: "> "; color: var(--kp-ink-soft); }
+    details.contrib-toggle[open] > summary::before { content: "v "; }
+    details.contrib-toggle[open] > summary { color: var(--kp-ink); }
+
+    .contrib { display: grid; margin-top: var(--space-2); }
+    .contrib-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 96px 64px;
+      align-items: center;
+      gap: var(--space-4);
+      padding: var(--space-3) 0;
+      border-bottom: 1px solid var(--kp-line);
+      color: var(--kp-ink);
+      font-size: var(--font-size-2);
+      font-variant-numeric: tabular-nums;
+    }
+    .contrib-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .contrib-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .contrib-bytes { color: var(--kp-ink-soft); text-align: right; }
+    .contrib-share { color: var(--kp-ink-soft); text-align: right; }
+
+    .empty {
+      border: 1px dashed var(--kp-line-strong);
+      border-radius: var(--kp-radius);
+      padding: var(--space-8) var(--space-5);
+      background: var(--gray-2);
+    }
+    .empty h3 { margin-top: var(--space-2); font-size: var(--font-size-4); font-weight: 800; }
+    .empty p { margin-top: var(--space-2); margin-bottom: 0; line-height: 1.6; }
+
+    .overlay { background: rgba(13, 26, 32, .48); }
+    .drawer { border-left: 1px solid var(--kp-line); }
+    .drawer-head { padding: var(--space-5) var(--space-6) var(--space-4); border-bottom: 1px solid var(--kp-line); }
+    .drawer-head h2 { font-size: var(--font-size-5); font-weight: 800; }
+    .drawer-head p { margin-top: var(--space-1); line-height: 1.55; }
+    .drawer-body { padding: var(--space-5) var(--space-6); }
+    .drawer-foot { padding: var(--space-4) var(--space-6); border-top: 1px solid var(--kp-line); }
+
+    .form-section { margin-bottom: var(--space-6); padding-top: 0; }
+    .form-section:first-child { padding-top: 0; }
+    .form-section:last-child { margin-bottom: 0; }
+    .form-section + .form-section { padding-top: 0; border-top: 0; }
+    .form-section.with-topline { border-top: 1px solid var(--kp-line); padding-top: var(--space-5); }
+    .field.notify-divider { border-top: 1px solid var(--kp-line); padding-top: var(--space-5); }
+    .form-section h3 {
+      margin: 0 0 var(--space-4);
+      color: var(--kp-ink-soft);
+      font-size: var(--font-size-2);
+      font-weight: 800;
+      letter-spacing: .01em;
+      text-transform: none;
+    }
+    .field-grid { gap: var(--space-4); }
+    .field-grid .field-grid { gap: var(--space-4); }
+    .field { display: grid; gap: var(--space-2); }
+    .field > label { color: var(--kp-ink-soft); font-size: var(--font-size-1); font-weight: 700; }
+    .field-help { color: var(--kp-ink-soft); font-size: var(--font-size-1); line-height: 1.5; }
+    .input-with-unit { display: flex; align-items: center; gap: var(--space-2); }
+    .unit { color: var(--kp-ink-soft); font-size: var(--font-size-1); font-weight: 700; }
+    .kp-select {
+      box-sizing: border-box;
+      height: var(--space-6);
+      min-height: 0;
+      padding: 0 var(--space-3);
+      border: 0;
+      border-radius: max(var(--radius-2), var(--radius-full));
+      background: var(--color-surface);
+      box-shadow: inset 0 0 0 1px var(--gray-a7);
+      color: var(--gray-12);
+      font-family: var(--default-font-family);
+      font-size: var(--font-size-2);
+      line-height: var(--line-height-2);
+      appearance: auto;
+      cursor: pointer;
+    }
+    .kp-select:hover { box-shadow: inset 0 0 0 1px var(--gray-a8); }
+    .input-with-unit .radix-select-control { flex: 0 0 auto; width: auto; }
+    .radix-select-control { width: 100%; }
+    .radix-select-trigger {
+      height: var(--space-6);
+      min-height: 0;
+      padding: 0 var(--space-3);
+      border: 0;
+      border-radius: max(var(--radius-2), var(--radius-full));
+      background: var(--color-surface);
+      box-shadow: inset 0 0 0 1px var(--gray-a7);
+      color: var(--gray-12);
+      font-family: var(--default-font-family);
+      font-size: var(--font-size-2);
+      line-height: var(--line-height-2);
+    }
+    .radix-select-trigger:hover {
+      border: 0;
+      background: var(--color-surface);
+      box-shadow: inset 0 0 0 1px var(--gray-a8);
+    }
+    .radix-select-arrow { color: var(--gray-11); }
+    .inline-note.warning { border: 1px solid var(--amber-a6); border-radius: var(--kp-radius); background: var(--amber-2); color: var(--amber-11); }
+    .hidden { display: none !important; }
+
+    .node-search { display: flex; align-items: center; gap: var(--space-2); margin: var(--space-4) 0 var(--space-3); }
+    .node-search .rt-TextFieldRoot { flex: 1 1 auto; min-width: 0; }
+    .node-search .button { flex: 0 0 auto; }
+    .button.loading { position: relative; pointer-events: none; opacity: .75; }
+    .button.loading::before {
+      content: "";
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      margin-right: var(--space-2);
+      border: 2px solid currentColor;
+      border-right-color: transparent;
+      border-radius: 50%;
+      vertical-align: -2px;
+      animation: kp-spin .6s linear infinite;
+    }
+    @keyframes kp-spin { to { transform: rotate(360deg); } }
+    .node-list {
+      display: grid;
+      max-height: 240px;
+      overflow: auto;
+      border: 1px solid var(--kp-line);
+      border-radius: var(--radius-3);
+      background: var(--gray-1);
+    }
+    .node-item {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-bottom: 1px solid var(--kp-line);
+      cursor: pointer;
+      transition: background-color .12s ease;
+    }
+    .node-item:last-child { border-bottom: 0; }
+    .node-item:hover { background: var(--gray-2); }
+    .node-item > input[type="checkbox"],
+    .switch-line input[type="checkbox"] {
+      flex: 0 0 auto;
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      min-height: 18px;
+      max-width: 18px;
+      max-height: 18px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      color: inherit;
+      box-shadow: none;
+      line-height: 1;
+      align-self: center;
+      vertical-align: middle;
+      margin-left: auto;
+      accent-color: var(--accent-9);
+    }
+    .node-name { min-width: 0; flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--kp-ink); font-size: var(--font-size-2); font-weight: 700; }
+    .node-region { flex: 0 0 auto; color: var(--kp-ink-soft); font-size: var(--font-size-1); white-space: nowrap; }
+    .node-id {
+      flex: 0 0 auto;
+      color: var(--kp-ink-soft);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    .node-count { margin-top: var(--space-3); color: var(--kp-ink-soft); font-size: var(--font-size-1); font-variant-numeric: tabular-nums; }
+
+    .switch-line {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-3) var(--space-4);
+      border: 1px solid var(--kp-line);
+      border-radius: var(--radius-3);
+      background: var(--gray-2);
+      cursor: pointer;
+    }
+    .switch-copy { display: block; width: max-content; max-width: 100%; flex: 0 0 auto; }
+    .switch-copy strong { color: var(--kp-ink); font-size: var(--font-size-2); }
+    .switch-copy span { color: var(--kp-ink-soft); font-size: var(--font-size-1); font-weight: 400; }
+
+    .segmented { display: inline-flex; justify-self: start; width: fit-content; gap: 2px; padding: 2px; border: 1px solid var(--kp-line); border-radius: var(--radius-3); background: var(--gray-2); }
+    .segmented button {
+      border: 0;
+      border-radius: calc(var(--radius-3) - 2px);
+      background: transparent;
+      color: var(--kp-ink-soft);
+      padding: var(--space-2) var(--space-4);
+      font-size: var(--font-size-1);
+      font-weight: 700;
+      cursor: pointer;
+      transition: background-color .12s ease, color .12s ease;
+    }
+    .segmented button:hover { color: var(--kp-ink); }
+    .segmented button.active { background: var(--accent-9); color: #fff; }
+
+    .toolbar-row { margin-top: 0; }
+
+    @media (max-width: 960px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .topbar { margin-bottom: var(--space-5); }
+    }
+    @media (max-width: 560px) {
+      .stats { gap: var(--space-2); }
+      .stat { padding: var(--space-3) var(--space-4); }
+      .stat-value { font-size: 21px; }
+      .pool-card { padding: var(--space-4); }
+      .section-head { align-items: flex-start; flex-direction: column; }
+      .field-grid { grid-template-columns: minmax(0, 1fr) ; }
+      .field.full { grid-column: auto; }
+      .contrib-row { grid-template-columns: minmax(0, 1fr) auto; }
+      .contrib-share { display: none; }
+      .drawer-head, .drawer-body, .drawer-foot { padding-left: var(--space-4); padding-right: var(--space-4); }
+      .bar-pct { font-size: 24px; }
+    }
+    /* ---------- 修正主题内置类的失效变量（toast 依赖 --border/--card/--foreground） ---------- */
+    .toast {
+      border: 1px solid var(--kp-line);
+      border-radius: var(--radius-3);
+      background: var(--gray-2);
+      color: var(--kp-ink);
+      box-shadow: var(--shadow-3);
+      padding: var(--space-3) var(--space-4);
+      font-size: var(--font-size-2);
+      font-weight: 600;
+      line-height: 1.5;
+    }
+    .toast.success { border-color: var(--green-a6); color: var(--green-11); }
+    .toast.danger, .toast.error { border-color: var(--red-a6); color: var(--red-11); }
+    .toast.warning { border-color: var(--amber-a6); color: var(--amber-11); }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Komari 插件</p>
+        <h1 id="pageTitle">共享流量池</h1>
+        <p class="subtitle">按组汇总节点流量，对比预置额度，到档发通知（例如 Oracle 多台共享 10TB/月）。</p>
+        <div class="status-line">
+          <span class="status-dot" id="schedulerDot"></span>
+          <span id="schedulerStatus">读取中…</span>
+        </div>
+      </div>
+    </header>
+
+    <section class="stats" aria-label="概览">
+      <div class="stat"><div class="stat-label">分组总数</div><div class="stat-value" id="statGroups">0</div><div class="stat-note">已保存的流量池</div></div>
+      <div class="stat"><div class="stat-label">本期合计已用</div><div class="stat-value" id="statUsed">-</div><div class="stat-note" id="statUsedNote">各分组之和</div></div>
+      <div class="stat"><div class="stat-label">最高占用</div><div class="stat-value" id="statTop">-</div><div class="stat-note" id="statTopNote">占预置额度</div></div>
+      <div class="stat"><div class="stat-label">可选节点</div><div class="stat-value" id="statNodes">0</div><div class="stat-note">来自 Komari 节点目录</div></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <div>
+          <h2>流量池</h2>
+          <p>每个分组独立配置额度、计费口径、归零规则和告警阈值；节点可同时出现在多个分组。</p>
+        </div>
+        <div class="foot-actions">
+          <button class="button rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-outline" type="button" id="tickButton">立即统计全部</button>
+          <button class="button rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-outline" type="button" id="refreshButton">刷新</button>
+          <button class="button primary rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-solid" type="button" id="newButton">新建分组</button>
+        </div>
+      </div>
+      <div id="poolList" class="pool-list"></div>
+    </section>
+  </main>
+
+  <div class="overlay" id="editorOverlay" hidden>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-labelledby="editorTitle">
+      <div class="drawer-head">
+        <div>
+          <h2 id="editorTitle">新建分组</h2>
+          <p id="editorSubtitle">一个分组 = 共享同一额度的若干节点 + 计费口径 + 归零规则 + 告警阈值。</p>
+        </div>
+      </div>
+      <div class="drawer-body" id="editorBody"></div>
+      <div class="drawer-foot">
+        <button class="button danger hidden rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-soft" data-accent-color="red" id="deleteEditorButton" type="button">删除分组</button>
+        <div class="foot-actions">
+          <button class="button rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-outline" id="testButton" type="button">发送测试通知</button>
+          <button class="button rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-outline" id="cancelEditorButton" type="button">取消</button>
+          <button class="button primary rt-reset rt-BaseButton rt-Button rt-r-size-2 rt-variant-solid" id="saveEditorButton" type="button">保存分组</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+  <div class="toast-stack" id="toastStack"></div>
+  <script>
+    var RPC_BASE = "plugin:kkr-traffic-pool:";
+    var GB = 1024 * 1024 * 1024;
+    var TB = 1024 * GB;
+    var DEFAULT_STEPS = [80, 85, 90, 95, 100];
+
+    var state = { groups: [], nodes: [], config: {}, lastAction: null };
+    var draft = null;
+    var nodeSearch = "";
+    var requestId = 0;
+    var pollTimer = 0;
+    var actionAid = "";
+
+    function $(id) { return document.getElementById(id); }
+
+    function escapeHtml(value) {
+      return String(value === undefined || value === null ? "" : value).replace(/[&<>'"]/g, function (char) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char];
+      });
+    }
+
+    function rpc(method, params) {
+      return fetch("/api/rpc2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", method: RPC_BASE + method, params: params, id: ++requestId })
+      }).then(function (response) {
+        return response.json();
+      }).then(function (payload) {
+        if (payload.error) throw new Error(payload.error.message || "RPC " + payload.error.code);
+        return payload.result;
+      });
+    }
+
+    function toast(message, type) {
+      var element = document.createElement("div");
+      element.className = "toast " + (type || "success");
+      element.textContent = message;
+      $("toastStack").appendChild(element);
+      window.setTimeout(function () { element.remove(); }, 3600);
+    }
+
+    function fmtBytes(bytes) {
+      var v = Number(bytes);
+      if (!isFinite(v) || v <= 0) return "0 B";
+      if (v >= TB) return (v / TB).toFixed(2) + " TB";
+      if (v >= GB) return (v / GB).toFixed(1) + " GB";
+      if (v >= 1024 * 1024) return (v / (1024 * 1024)).toFixed(1) + " MB";
+      if (v >= 1024) return (v / 1024).toFixed(1) + " KB";
+      return v.toFixed(0) + " B";
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return "从未";
+      var date = new Date(iso);
+      if (isNaN(date.getTime())) return "从未";
+      var parts = [date.getFullYear(), date.getMonth() + 1, date.getDate(),
+        date.getHours(), date.getMinutes(), date.getSeconds()];
+      var labels = [];
+      for (var i = 0; i < parts.length; i++) {
+        var v = parts[i];
+        if (i === 0) labels.push(String(v));
+        else labels.push((v < 10 ? "0" : "") + v);
+      }
+      return labels[0] + "-" + labels[1] + "-" + labels[2] + " " + labels[3] + ":" + labels[4] + ":" + labels[5];
+    }
+
+    function metricLabel(metric) {
+      if (metric === "down") return "入站";
+      if (metric === "both") return "出站+入站";
+      return "出站(计费)";
+    }
+
+    function resetLabel(group) {
+      return group.reset_mode === "none" ? "不归零" : "每月 " + group.reset_day + " 号重置";
+    }
+
+    function periodLabel(group) {
+      return group.period === "none" || !group.period ? "持续累计" : group.period;
+    }
+
+    function level(pct) {
+      if (pct >= 100) return "bad";
+      if (pct >= 90) return "warn";
+      return "ok";
+    }
+
+    function loadState() {
+      return rpc("getState", {}).then(function (data) {
+        state.groups = data.groups || [];
+        state.nodes = data.nodes || [];
+        state.config = data.config || {};
+        state.lastAction = data.last_action || null;
+        render();
+        checkAction();
+        return data;
+      }).catch(function (e) {
+        toast("读取状态失败：" + e.message, "danger");
+        return null;
+      });
+    }
+
+    // 异步动作（立即统计 / 测试通知）轮询回执
+    function checkAction() {
+      var action = state.lastAction;
+      if (!action || !actionAid) return;
+      if (action.aid !== actionAid) return;
+      if (action.ok === null || action.ok === undefined) return;
+      window.clearInterval(pollTimer);
+      pollTimer = 0;
+      actionAid = "";
+      if (action.ok) {
+        toast(action.type === "tick" ? "统计完成" : "测试通知已发送");
+        loadState();
+      } else {
+        toast("操作失败：" + (action.error || "未知错误"), "danger");
+      }
+    }
+
+    function startPolling() {
+      window.clearInterval(pollTimer);
+      var tries = 0;
+      pollTimer = window.setInterval(function () {
+        tries += 1;
+        if (tries > 30) {
+          window.clearInterval(pollTimer);
+          pollTimer = 0;
+          actionAid = "";
+          toast("等待回执超时，稍后刷新看看", "danger");
+          return;
+        }
+        loadState();
+      }, 2000);
+    }
+
+    function render() {
+      var cfg = state.config || {};
+      var groups = state.groups || [];
+      $("schedulerDot").className = "status-dot " + (cfg.enabled === false ? "off" : "");
+      $("schedulerStatus").textContent = cfg.enabled === false
+        ? "统计已暂停（插件配置里关闭了启用开关），分组与累计数据仍保留"
+        : "调度器运行中 · 默认每 " + (cfg.default_interval_minutes || 10) + " 分钟统计一次 · 通知" + (cfg.notify_enabled === false ? "已全局关闭" : "开启");
+
+      $("statGroups").textContent = groups.length;
+      $("statNodes").textContent = (state.nodes || []).length;
+
+      var totalUsed = 0;
+      var topPct = 0;
+      var topName = "-";
+      for (var i = 0; i < groups.length; i++) {
+        totalUsed += Number(groups[i].display_used) || 0;
+        var pct = Number(groups[i].pct) || 0;
+        if (pct >= topPct) { topPct = pct; topName = groups[i].name; }
+      }
+      $("statUsed").textContent = groups.length ? fmtBytes(totalUsed) : "-";
+      $("statTop").textContent = topPct > 0 ? topPct.toFixed(1) + "%" : "-";
+      $("statTopNote").textContent = groups.length ? topName : "占预置额度";
+
+      var list = $("poolList");
+      if (!groups.length) {
+        list.innerHTML = '<div class="empty">' +
+          '<div class="empty-mark">+</div><h3>还没有分组</h3>' +
+          '<p>点「新建分组」，选几个共享额度的节点，填上额度，就开始了。</p></div>';
+        return;
+      }
+      var html = [];
+      for (var j = 0; j < groups.length; j++) html.push(cardHtml(groups[j]));
+      list.innerHTML = html.join("");
+    }
+
+    function nodeNameMap() {
+      var map = {};
+      for (var i = 0; i < (state.nodes || []).length; i++) map[state.nodes[i].uuid] = state.nodes[i].name;
+      return map;
+    }
+
+    function cardHtml(g) {
+      var pct = Number(g.pct) || 0;
+      var lv = level(pct);
+      var steps = Array.isArray(g.thresholds) ? g.thresholds : [];
+      var ticks = [];
+      for (var t = 0; t < steps.length; t++) ticks.push('<span class="bar-tick" style="left:' + Math.min(100, steps[t]) + '%"></span>');
+      var width = Math.max(0, Math.min(100, pct));
+      var raised = (g.notified || []).slice().sort(function (a, b) { return a - b; }).join(" / ");
+      var names = nodeNameMap();
+
+      var rows = [];
+      var ids = g.nodeIds || [];
+      for (var n = 0; n < ids.length; n++) {
+        var uuid = ids[n];
+        var bytes = Number((g.node_used || {})[uuid]) || 0;
+        var share = g.used > 0 ? (bytes * 100) / g.used : 0;
+        rows.push('<div class="contrib-row"><span class="contrib-name">' + escapeHtml(names[uuid] || uuid.slice(0, 8)) + '</span>' +
+          '<span class="contrib-bytes">' + escapeHtml(fmtBytes(bytes)) + '</span>' +
+          '<span class="contrib-share">' + share.toFixed(0) + '%</span></div>');
+      }
+
+      var backfill = "";
+      if (Number(g.backfill_bytes) > 0) {
+        backfill = Number(g.backfill_effective) > 0
+          ? '<div class="backfill-note">含手动回填 <strong>' + escapeHtml(fmtBytes(g.backfill_effective)) + '</strong>（' + escapeHtml(String(g.backfill_period || "")) + ' 期）</div>'
+          : '<div class="backfill-note">⚠ 回填 ' + escapeHtml(fmtBytes(g.backfill_bytes)) + ' 属于上期，本期已失效，可重新填写</div>';
+      }
+      var err = g.last_error
+        ? '<div class="pool-error"><strong>最近一次异常：</strong><span>' + escapeHtml(g.last_error) + '</span></div>'
+        : "";
+
+      return '<article class="pool-card" data-group-id="' + escapeHtml(g.id) + '">' +
+        '<div class="pool-head"><div>' +
+          '<h3>' + escapeHtml(g.name) + '</h3>' +
+          '<div class="toolbar-row">' +
+            '<span class="pill mono">' + escapeHtml(metricLabel(g.metric)) + '</span>' +
+            '<span class="pill off">' + escapeHtml(resetLabel(g)) + '</span>' +
+            '<span class="pill off">阈值 ' + escapeHtml(steps.length ? String(steps.join("/")) : "无") + '</span>' +
+            (g.notify_enabled ? '' : '<span class="pill off">通知已关</span>') +
+            '<span class="pill ' + lv + '">' + escapeHtml(lv === "bad" ? "已超额度" : (lv === "warn" ? "接近上限" : "正常")) + '</span>' +
+          '</div>' +
+        '</div><div class="pool-actions">' +
+          '<button class="button small rt-reset rt-BaseButton rt-Button rt-r-size-1 rt-variant-ghost" type="button" data-action="tick" data-id="' + escapeHtml(g.id) + '">立即统计</button>' +
+          '<button class="button small primary rt-reset rt-BaseButton rt-Button rt-r-size-1 rt-variant-solid" type="button" data-action="edit" data-id="' + escapeHtml(g.id) + '">编辑</button>' +
+        '</div></div>' +
+        '<div class="bar"><div class="bar-label"><span class="bar-num">' + escapeHtml(fmtBytes(g.display_used)) + ' / ' + escapeHtml(fmtBytes(g.quota_bytes)) + '</span>' +
+          '<span class="bar-pct ' + lv + '">' + pct.toFixed(1) + '%</span></div>' +
+        '<div class="bar-track">' + ticks.join("") + '<div class="bar-fill ' + (lv === "ok" ? "" : lv) + '" style="width:' + width.toFixed(2) + '%"></div></div></div>' +
+        '<div class="pool-meta">' +
+          '<span>最后更新：<strong class="mono">' + escapeHtml(fmtTime(g.last_run_at)) + '</strong></span>' +
+          '<span>账期：<strong>' + escapeHtml(periodLabel(g)) + '</strong></span>' +
+          '<span>节点：<strong>' + ids.length + '</strong> 台</span>' +
+          '<span>已发告警：<strong>' + escapeHtml(raised || "无") + '</strong></span>' +
+        '</div>' + backfill + err +
+        (ids.length ? '<details class="contrib-toggle"><summary>各节点本期用量</summary><div class="contrib">' + rows.join("") + '</div></details>' : "") +
+        '</article>';
+    }
+
+    function openEditor(group) {
+      nodeSearch = "";
+      if (group) {
+        draft = {
+          id: group.id,
+          name: group.name,
+          nodeIds: (group.nodeIds || []).slice(),
+          quota_value: group.quota_value,
+          quota_unit: group.quota_unit,
+          metric: group.metric,
+          reset_mode: group.reset_mode,
+          reset_day: group.reset_day,
+          thresholdsText: (group.thresholds || []).join(", "),
+          notify_enabled: group.notify_enabled !== false,
+          interval_minutes: group.interval_minutes || "",
+          backfill_gb: Number(group.backfill_bytes) > 0 ? Number((group.backfill_bytes / GB).toFixed(2)) : ""
+        };
+      } else {
+        draft = {
+          id: "",
+          name: "",
+          nodeIds: [],
+          quota_value: 10,
+          quota_unit: "TB",
+          metric: "up",
+          reset_mode: "monthly",
+          reset_day: 1,
+          thresholdsText: DEFAULT_STEPS.join(", "),
+          notify_enabled: true,
+          interval_minutes: "",
+          backfill_gb: ""
+        };
+      }
+      $("editorTitle").textContent = draft.id ? "编辑分组" : "新建分组";
+      $("deleteEditorButton").classList.toggle("hidden", !draft.id);
+      renderEditor();
+      $("editorOverlay").hidden = false;
+    }
+
+    function closeEditor() {
+      $("editorOverlay").hidden = true;
+      draft = null;
+    }
+
+    function nodeItemsHtml() {
+      var selected = {};
+      for (var i = 0; i < draft.nodeIds.length; i++) selected[draft.nodeIds[i]] = true;
+      var needle = nodeSearch.toLowerCase();
+      var out = [];
+      var nodes = state.nodes || [];
+      for (var j = 0; j < nodes.length; j++) {
+        var node = nodes[j];
+        var hay = (node.name + " " + node.uuid + " " + (node.group || "")).toLowerCase();
+        if (needle && hay.indexOf(needle) < 0) continue;
+        out.push('<label class="node-item"><input type="checkbox" data-node-id="' + escapeHtml(node.uuid) + '"' +
+          (selected[node.uuid] ? " checked" : "") + '><span class="node-name">' + escapeHtml(node.name) + '</span>' +
+          '<span class="node-region">' + escapeHtml([node.region, node.group].filter(Boolean).join(" ")) + '</span>' +
+          '<span class="node-id">' + escapeHtml(node.uuid.slice(0, 8)) + '</span></label>');
+      }
+      return out.length ? out.join("") : '<div class="node-item"><span class="node-name">没有匹配的节点</span></div>';
+    }
+
+    function field(label, input, help, full, cls) {
+      return '<div class="field' + (full ? " full" : "") + (cls ? " " + cls : "") + '"><label>' + escapeHtml(label) + '</label>' + input +
+        (help ? '<div class="field-help">' + escapeHtml(help) + '</div>' : "") + '</div>';
+    }
+
+    function textInput(name, value, type, attrs) {
+      return '<div class="rt-TextFieldRoot rt-r-size-2 rt-variant-surface"><input class="rt-reset rt-TextFieldInput" data-field="' +
+        name + '" type="' + (type || "text") + '" value="' + escapeHtml(value) + '"' + (attrs || "") + '></div>';
+    }
+
+    function renderEditor() {
+      if (!draft) return;
+      var metricOpts = "";
+      var metricList = [["up", "出站 / 上传（计费）"], ["down", "入站 / 下载"], ["both", "出站 + 入站"]];
+      for (var i = 0; i < metricList.length; i++) {
+        metricOpts += '<option value="' + metricList[i][0] + '"' + (draft.metric === metricList[i][0] ? " selected" : "") + '>' + escapeHtml(metricList[i][1]) + '</option>';
+      }
+      var unitOpts = "";
+      var unitList = ["GB", "TB"];
+      for (var u = 0; u < unitList.length; u++) {
+        unitOpts += '<option value="' + unitList[u] + '"' + (draft.quota_unit === unitList[u] ? " selected" : "") + '>' + unitList[u] + '</option>';
+      }
+      var defInterval = (state.config && state.config.default_interval_minutes) || 10;
+      var monthly = draft.reset_mode === "monthly";
+
+      var formHtml = '<section class="form-section"><div class="field-grid">' +
+        field("分组名称", textInput("name", draft.name), "例如：生产服务器共享流量", true) +
+        field("预置额度", '<div class="input-with-unit">' + textInput("quota_value", draft.quota_value, "number", ' step="any" min="0"') +
+          '<select class="kp-select" data-field="quota_unit">' + unitOpts + '</select><span class="unit">每期</span></div>',
+          "10 TB = 10240 GB；若 OCI 控制台按 10000 GB 计，填 10000", true) +
+        field("计费口径", '<select class="kp-select" data-field="metric">' + metricOpts + '</select>',
+          "Oracle 出站上限只算上行，选「出站」") +
+        '</div></section>' +
+        '<section class="form-section with-topline"><div class="field-grid">' +
+        field("归零方式", '<div class="segmented"><button type="button" class="' + (monthly ? "active" : "") + '" data-reset-mode="monthly">每月重置</button>' +
+          '<button type="button" class="' + (monthly ? "" : "active") + '" data-reset-mode="none">不归零</button></div>',
+          "选「每月重置」时填账期起始日（通常是注册日）", true) +
+          (monthly
+          ? field("每月几号归零", textInput("reset_day", draft.reset_day, "number", ' min="1" max="31" step="1"'))
+          : "") +
+        field("刷新间隔（分钟）", textInput("interval_minutes", draft.interval_minutes, "number", ' min="1" max="1440" step="1" placeholder="留空 = 全局 ' + defInterval + ' 分钟"')) +
+        '</div></section>' +
+        '<section class="form-section"><div class="field-grid">' +
+        field("本期开始前已用（GB）", textInput("backfill_gb", draft.backfill_gb, "number", ' step="any" min="0" placeholder="例如 850"'),
+          "插件从上线时刻起累计；填 OCI 控制台「本账期已用」与插件统计值的差额即可对齐。新账期自动失效。", true) +
+        '</div></section>';
+
+      var formSec = $("editorForm");
+      if (!formSec) {
+        formSec = document.createElement("div");
+        formSec.id = "editorForm";
+        $("editorBody").appendChild(formSec);
+      }
+      formSec.innerHTML = formHtml;
+
+      var nodesSec = $("editorNodes");
+      if (!nodesSec) {
+        nodesSec = document.createElement("section");
+        nodesSec.id = "editorNodes";
+        nodesSec.className = "form-section";
+        $("editorBody").appendChild(nodesSec);
+      }
+      nodesSec.innerHTML = '<div class="field-grid">' +
+        field("阈值（%，逗号分隔）", textInput("thresholdsText", draft.thresholdsText),
+          "每档每期只发一次；留空 = 不告警", true) +
+        field("本组发送通知", '<div class="switch-line" role="checkbox" aria-checked="' + (draft.notify_enabled ? "true" : "false") + '"><span class="switch-copy"><strong>' + (draft.notify_enabled ? "开启" : "关闭") +
+          '</strong><span>关闭后只统计，不推送通知</span></span><input type="checkbox" data-field="notify_enabled"' + (draft.notify_enabled ? " checked" : "") + '></div>', "", true, "notify-divider") +
+        '</div>' +
+        '<div class="node-search">' +
+        '<div class="rt-TextFieldRoot rt-r-size-1 rt-variant-surface"><input class="rt-reset rt-TextFieldInput" id="nodeSearch" placeholder="搜索节点" value="' + escapeHtml(nodeSearch) + '"></div>' +
+        '<button class="button small rt-reset rt-BaseButton rt-Button rt-r-size-1 rt-variant-ghost" type="button" data-node-action="all">全选</button>' +
+        '<button class="button small rt-reset rt-BaseButton rt-Button rt-r-size-1 rt-variant-ghost" type="button" data-node-action="clear">清空</button>' +
+        '</div>' +
+        '<div class="node-list" id="nodeList">' + nodeItemsHtml() + '</div>' +
+        '<div class="node-count" id="selectedNodeCount">已选 ' + draft.nodeIds.length + ' 台</div>';
+
+      bindEditorEvents();
+    }
+    function renderNodeList() {
+      var box = $("nodeList");
+      if (box) box.innerHTML = nodeItemsHtml();
+    }
+
+    function bindEditorEvents() {
+      var body = $("editorBody");
+      body.querySelectorAll("[data-field]").forEach(function (element) {
+        var key = element.dataset.field;
+        var eventName = (element.type === "checkbox" || element.tagName === "SELECT") ? "change" : "input";
+        element.addEventListener(eventName, function () {
+          if (element.type === "checkbox") draft[key] = element.checked;
+          else if (key === "notify_enabled") draft[key] = element.checked;
+          else if (["quota_value", "reset_day", "interval_minutes"].indexOf(key) >= 0) {
+            draft[key] = element.value === "" ? "" : Number(element.value);
+          } else {
+            draft[key] = element.value;
+          }
+          if (key === "notify_enabled") {
+            var strong = element.parentNode.querySelector("strong");
+            if (strong) strong.textContent = draft.notify_enabled ? "开启" : "关闭";
+          }
+          if (key === "reset_mode") renderEditor();
+        });
+      });
+
+      body.querySelectorAll("[data-reset-mode]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          draft.reset_mode = button.dataset.resetMode;
+          if (draft.reset_mode === "none") draft.reset_day = 0;
+          else if (!draft.reset_day) draft.reset_day = 1;
+          renderEditor();
+        });
+      });
+
+      body.querySelectorAll("[data-node-id]").forEach(function (checkbox) {
+        checkbox.addEventListener("change", function () {
+          var uuid = checkbox.dataset.nodeId;
+          var index = draft.nodeIds.indexOf(uuid);
+          if (checkbox.checked && index < 0) draft.nodeIds.push(uuid);
+          if (!checkbox.checked && index >= 0) draft.nodeIds.splice(index, 1);
+          syncNodeCount();
+        });
+      });
+
+      body.querySelectorAll("[data-node-action]").forEach(function (button) {
+        button.addEventListener("click", function () {
+          var action = button.dataset.nodeAction;
+          var visible = [];
+          var needle = nodeSearch.toLowerCase();
+          for (var i = 0; i < (state.nodes || []).length; i++) {
+            var node = state.nodes[i];
+            var hay = (node.name + " " + node.uuid + " " + (node.group || "")).toLowerCase();
+            if (needle && hay.indexOf(needle) < 0) continue;
+            visible.push(node.uuid);
+          }
+          if (action === "all") {
+            for (var j = 0; j < visible.length; j++) {
+              if (draft.nodeIds.indexOf(visible[j]) < 0) draft.nodeIds.push(visible[j]);
+            }
+          } else {
+            draft.nodeIds = draft.nodeIds.filter(function (uuid) { return visible.indexOf(uuid) < 0; });
+          }
+          renderNodeList();
+          syncNodeCount();
+        });
+      });
+
+      var search = $("nodeSearch");
+      if (search && !search.dataset.bound) {
+        search.dataset.bound = "1";
+        search.addEventListener("input", function () {
+          nodeSearch = search.value;
+          renderNodeList();
+        });
+        search.addEventListener("keydown", function (event) {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            search.value = "";
+            nodeSearch = "";
+            renderNodeList();
+            search.focus();
+          }
+        });
+      }
+    }
+
+    function syncNodeCount() {
+      var nodeCount = $("selectedNodeCount");
+      if (nodeCount) nodeCount.textContent = "已选 " + draft.nodeIds.length + " 台";
+    }
+
+    function draftBody() {
+      var body = {
+        id: draft.id || "",
+        name: draft.name,
+        nodeIds: draft.nodeIds.slice(),
+        quota_value: draft.quota_value,
+        quota_unit: draft.quota_unit,
+        metric: draft.metric,
+        reset_mode: draft.reset_mode,
+        reset_day: draft.reset_day,
+        notify_enabled: draft.notify_enabled,
+        interval_minutes: draft.interval_minutes
+      };
+      if (draft.thresholdsText !== "") body.thresholds = draft.thresholdsText;
+      if (draft.backfill_gb !== "" && draft.backfill_gb !== undefined) body.backfill_gb = draft.backfill_gb;
+      return body;
+    }
+
+    function saveDraft() {
+      var list = [];
+      var groups = state.groups || [];
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        if (g.id === draft.id) continue;
+        list.push({
+          id: g.id, name: g.name, nodeIds: g.nodeIds.slice(), quota_value: g.quota_value,
+          quota_unit: g.quota_unit, metric: g.metric, reset_mode: g.reset_mode,
+          reset_day: g.reset_day, thresholds: g.thresholds, notify_enabled: g.notify_enabled,
+          interval_minutes: g.interval_minutes,
+          backfill_gb: Number(g.backfill_effective) > 0 ? Number((g.backfill_effective / GB).toFixed(4)) : 0
+        });
+      }
+      list.push(draftBody());
+      var saveBtn = $("saveEditorButton");
+      var savedText = saveBtn ? saveBtn.textContent : "";
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.classList.add("loading");
+        saveBtn.textContent = "保存中…";
+      }
+      return rpc("saveGroups", { groups: list }).then(function (data) {
+        state.groups = data.groups || [];
+        state.nodes = data.nodes || [];
+        state.config = data.config || {};
+        toast("已保存");
+        closeEditor();
+        render();
+      }).catch(function (e) {
+        toast("保存失败：" + e.message, "danger");
+      }).finally(function () {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.classList.remove("loading");
+          saveBtn.textContent = savedText || "保存分组";
+        }
+      });
+    }
+
+    function deleteDraft() {
+      if (!draft || !draft.id) return Promise.resolve();
+      if (!window.confirm("删除分组「" + draft.name + "」？其累计数据会一并移除。")) return Promise.resolve();
+      var list = [];
+      var groups = state.groups || [];
+      for (var i = 0; i < groups.length; i++) {
+        var g = groups[i];
+        if (g.id === draft.id) continue;
+        list.push({
+          id: g.id, name: g.name, nodeIds: g.nodeIds.slice(), quota_value: g.quota_value,
+          quota_unit: g.quota_unit, metric: g.metric, reset_mode: g.reset_mode,
+          reset_day: g.reset_day, thresholds: g.thresholds, notify_enabled: g.notify_enabled,
+          interval_minutes: g.interval_minutes,
+          backfill_gb: undefined
+        });
+      }
+      return rpc("saveGroups", { groups: list }).then(function (data) {
+        state.groups = data.groups || [];
+        toast("分组已删除");
+        closeEditor();
+        render();
+      }).catch(function (e) {
+        toast("删除失败：" + e.message, "danger");
+      });
+    }
+
+    function tickAll() {
+      actionAid = "tick-" + Date.now();
+      rpc("tickNow", { aid: actionAid }).then(function () {
+        toast("已触发统计，稍后自动刷新");
+        startPolling();
+      }).catch(function (e) {
+        actionAid = "";
+        toast("触发失败：" + e.message, "danger");
+      });
+    }
+
+    function tickGroup(id) {
+      actionAid = "tick-" + id + "-" + Date.now();
+      rpc("tickNow", { group_id: id, aid: actionAid }).then(function () {
+        startPolling();
+      }).catch(function (e) {
+        actionAid = "";
+        toast("触发失败：" + e.message, "danger");
+      });
+    }
+
+    function sendTest() {
+      if (!draft || !draft.id) {
+        toast("请先保存分组，再发送测试通知", "warning");
+        return;
+      }
+      actionAid = "test-" + Date.now();
+      rpc("sendTest", { group_id: draft.id, aid: actionAid }).then(function () {
+        toast("测试通知已提交，请查看 Telegram");
+        startPolling();
+      }).catch(function (e) {
+        actionAid = "";
+        toast("发送失败：" + e.message, "danger");
+      });
+    }
+
+    function bindGlobalEvents() {
+      $("newButton").addEventListener("click", function () { openEditor(null); });
+      $("refreshButton").addEventListener("click", function () {
+        loadState().then(function (data) { if (data) toast("已刷新"); });
+      });
+      $("tickButton").addEventListener("click", tickAll);
+      $("cancelEditorButton").addEventListener("click", closeEditor);
+      $("saveEditorButton").addEventListener("click", saveDraft);
+      $("deleteEditorButton").addEventListener("click", deleteDraft);
+      $("testButton").addEventListener("click", sendTest);
+
+      $("poolList").addEventListener("click", function (event) {
+        var button = event.target.closest("[data-action]");
+        if (!button) return;
+        var id = button.dataset.id;
+        if (button.dataset.action === "edit") {
+          var found = null;
+          for (var i = 0; i < state.groups.length; i++) {
+            if (state.groups[i].id === id) found = state.groups[i];
+          }
+          if (found) openEditor(found);
+        } else if (button.dataset.action === "tick") {
+          tickGroup(id);
+        }
+      });
+
+      document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && draft) closeEditor();
+      });
+
+      $("editorOverlay").addEventListener("click", function (event) {
+        if (event.target === $("editorOverlay")) closeEditor();
+      });
+    }
+
+    bindGlobalEvents();
+    loadState();
+  </script>
+</body>
+</html>
